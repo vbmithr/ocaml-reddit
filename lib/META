@@ -1,0 +1,12 @@
+# OASIS_START
+# DO NOT EDIT (digest: 86f92ede908ac91a5ed5e88813e061ee)
+version = "0.1"
+description = "Interface to the reddit API"
+requires = "jsonm"
+archive(byte) = "reddit.cma"
+archive(byte, plugin) = "reddit.cma"
+archive(native) = "reddit.cmxa"
+archive(native, plugin) = "reddit.cmxs"
+exists_if = "reddit.cma"
+# OASIS_STOP
+

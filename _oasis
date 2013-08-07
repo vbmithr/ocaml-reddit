@@ -1,0 +1,29 @@
+OASISFormat: 0.3
+Name: reddit
+Version: 0.1
+Synopsis: Interface to the reddit API
+Authors: Vincent Bernardoff <vb@luminar.eu.org>
+License: ISC
+Plugins: META (0.3), DevFiles (0.3)
+BuildTools: ocamlbuild
+
+Library reddit
+  Path: lib
+  Modules: Types
+  BuildDepends: jsonm
+
+Executable parse_link
+  Path: test
+  MainIs: parse_link.ml
+  BuildDepends: reddit
+  CompiledObject: native
+  Build: true
+  Install: false
+
+Executable parse_page
+  Path: test
+  MainIs: parse_page.ml
+  BuildDepends: reddit
+  CompiledObject: native
+  Build: true
+  Install: false

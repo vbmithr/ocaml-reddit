@@ -23,7 +23,7 @@ Executable parse_link
 Executable parse_page
   Path: test
   MainIs: parse_page.ml
-  BuildDepends: reddit
+  BuildDepends: reddit, cohttp, lwt, cohttp.lwt
   CompiledObject: native
   Build: true
   Install: false

@@ -1,5 +1,8 @@
 open Types
 
+let string_of_link l =
+  Printf.sprintf "%s" l.link_title
+
 let main () =
   if Array.length Sys.argv < 2 then
     Printf.fprintf stderr "Usage: %s link.json\n%!" Sys.argv.(0)

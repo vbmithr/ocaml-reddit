@@ -77,9 +77,6 @@ let link_of_stringmap map =
     link_permalink= string_of_lexeme (StringMap.find "permalink" map)
   }
 
-let string_of_link l =
-  Printf.sprintf "%s %s" l.link_id l.link_title
-
 let interesting_names =
   List.fold_left
     (fun acc e -> StringSet.add e acc)

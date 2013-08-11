@@ -15,33 +15,47 @@ let string_of_link l =
     date.tm_hour date.tm_min date.tm_sec
     l.link_title
 
-let decode_page decoder =
+let decode_page h decoder =
   let maps = stringmaps_of_page decoder in
-  (* let _ = Printf.printf "Keys found: "; StringMap.iter (fun k _ -> Printf.printf "%s " k) stringmap; print_endline "" in *)
-  let links = List.map link_of_stringmap maps in
-  let last_link = List.hd links in
-  let last_id = "t3_" ^ last_link.link_id in
-  List.iter (fun link -> Printf.printf "%s\n%!" (string_of_link link)) (List.rev links);
-  last_id
+  if maps = [] then None else
+    let links = List.map link_of_stringmap maps in
+    let last_link = List.hd links in
+    let last_id = "t3_" ^ last_link.link_id in
+    (* Adding the results in the DB. *)
+    let links = List.rev links in
+    let _ = List.map (fun link -> Couchdb.Doc.add h "reddit" (json_of_link link)) links in
+    List.iter (fun link -> Printf.printf "%s\n%!" (string_of_link link)) links;
+    Some last_id
 
-let main () =
-  let init_uri = Uri.of_string ("http://www.reddit.com/r/" ^ Sys.argv.(1) ^ "/new.json") in
-  let init_uri = Uri.add_query_param' init_uri ("limit", Sys.argv.(2)) in
+let main ?after ?before ?(limit="100") subreddit =
+  (* Creates the "reddit" DB. *)
+  let h = Couchdb.handle () in
+  let _ = Couchdb.DB.create h "reddit" in
+  let base_uri = Uri.of_string ("http://www.reddit.com/r/" ^ subreddit ^ "/new.json") in
+  let base_uri = Uri.add_query_param' base_uri ("limit", limit) in
+  let init_uri = match after with
+    | None -> base_uri
+    | Some id -> Uri.add_query_param' base_uri ("after", id)
+  in
   let headers = Header.init_with "User-Agent" user_agent in
   let rec fetch_and_decode uri =
-    Printf.printf "\nUri: %s\n%!" (Uri.to_string uri);
     C.get ~headers uri >>= function
     | Some (resp, body) -> B.string_of_body body >>= fun body ->
       let decoder = Jsonm.decoder (`String body) in
-      let last_id = decode_page decoder in
-      let uri = Uri.add_query_param' init_uri ("after", last_id) in
-      Lwt_unix.sleep 2.0 >>= fun () ->
-      fetch_and_decode uri
+      (match decode_page h decoder with
+       | None -> Lwt.return ()
+       | Some last_id ->
+         let uri = Uri.add_query_param' base_uri ("after", last_id) in
+         Lwt_unix.sleep 2.0 >>= fun () ->
+         fetch_and_decode uri)
     | None -> Lwt.return () in
   fetch_and_decode init_uri
 
+let print_usage () = Printf.fprintf stderr "Usage: %s subreddit [limit] [after]\n%!" Sys.argv.(0)
+
 let _ =
-  if Array.length Sys.argv < 2 then
-    Printf.fprintf stderr "Usage: %s page.json\n%!" Sys.argv.(0)
-  else
-    Lwt_main.run (main ())
+  match Array.length Sys.argv with
+  | 1 -> print_usage ()
+  | 2 -> Lwt_main.run (main Sys.argv.(1))
+  | 3 -> Lwt_main.run (main ~limit:Sys.argv.(2) Sys.argv.(1))
+  | _ -> Lwt_main.run (main ~limit:Sys.argv.(2) ~after:Sys.argv.(3) Sys.argv.(1))

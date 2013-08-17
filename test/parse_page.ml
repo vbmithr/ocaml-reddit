@@ -16,24 +16,25 @@ let string_of_link l =
     l.link_title
 
 let decode_page h decoder =
-  let maps = stringmaps_of_page decoder in
+  let maps = try stringmaps_of_page decoder with _ -> [] in
   if maps = [] then Lwt.return None else
     let links = List.map link_of_stringmap maps in
     let last_link = List.hd links in
     let last_id = "t3_" ^ last_link.link_id in
     (* Adding the results in the DB. *)
     let links = List.rev links in
-    List.iter (fun link -> Printf.printf "%s\n%!" (string_of_link link)) links;
-    Lwt_list.map_p
-      (fun link -> Couchdb.Doc.add h "reddit" (json_of_link link)) links
-    >>= fun _ -> Lwt.return (Some last_id)
+    Lwt_list.map_s
+      (fun link ->
+         Printf.printf "%s\n%!" (string_of_link link);
+         Couchdb.Doc.add h "reddit" (json_of_link link)) links
+    >>= fun m -> if List.exists (function `Error _ -> true | _ -> false) m
+    then Lwt.return None
+    else Lwt.return (Some last_id)
 
 let main ?after ?before ?(limit="100") subreddit =
   (* Creates the "reddit" DB. *)
   let h = Couchdb.handle () in
-  Lwt.catch
-    (fun () -> Couchdb.DB.create h "reddit")
-    (fun _ -> Lwt.return `Ok)
+  Couchdb.DB.create h "reddit"
   >>= fun _ ->
   let base_uri = Uri.of_string ("http://www.reddit.com/r/" ^ subreddit ^ "/new.json") in
   let base_uri = Uri.add_query_param' base_uri ("limit", limit) in
@@ -46,14 +47,15 @@ let main ?after ?before ?(limit="100") subreddit =
     C.get ~headers uri >>= function
     | Some (resp, body) -> B.string_of_body body >>= fun body ->
       let decoder = Jsonm.decoder (`String body) in
-      Lwt.catch (fun () -> decode_page h decoder >>= function
+      (decode_page h decoder >>= function
         | None -> Lwt.return ()
         | Some last_id ->
           let uri = Uri.add_query_param' base_uri ("after", last_id) in
           Lwt_unix.sleep 2.0 >>= fun () ->
           fetch_and_decode uri)
-        (fun _ -> Lwt.return ())
-    | None -> Lwt.return () in
+    | None ->
+      Printf.printf "Connection to reddit failed. Exiting.\n%!";
+      Lwt.return () in
   fetch_and_decode init_uri
 
 let print_usage () = Printf.fprintf stderr "Usage: %s subreddit [limit] [after]\n%!" Sys.argv.(0)

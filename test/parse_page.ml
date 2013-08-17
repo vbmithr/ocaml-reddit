@@ -31,7 +31,7 @@ let decode_page h decoder =
     then Lwt.return None
     else Lwt.return (Some last_id)
 
-let main ?after ?before ?(limit="100") subreddit =
+let main ?(freq=600.0) ?after ?before ?(limit="100") subreddit =
   (* Creates the "reddit" DB. *)
   let h = Couchdb.handle () in
   Couchdb.DB.create h "reddit"
@@ -48,14 +48,16 @@ let main ?after ?before ?(limit="100") subreddit =
     | Some (resp, body) -> B.string_of_body body >>= fun body ->
       let decoder = Jsonm.decoder (`String body) in
       (decode_page h decoder >>= function
-        | None -> Lwt.return ()
+        | None ->
+          Printf.printf "\nNo new links, waiting for %.0f seconds before retrying...\n%!" freq;
+          Lwt_unix.sleep freq >>= fun () -> fetch_and_decode uri
         | Some last_id ->
           let uri = Uri.add_query_param' base_uri ("after", last_id) in
           Lwt_unix.sleep 2.0 >>= fun () ->
           fetch_and_decode uri)
     | None ->
-      Printf.printf "Connection to reddit failed. Exiting.\n%!";
-      Lwt.return () in
+      Printf.printf "Connection to reddit failed. Retrying in %.0f seconds.\n%!" freq;
+      Lwt_unix.sleep freq >>= fun () -> fetch_and_decode uri in
   fetch_and_decode init_uri
 
 let print_usage () = Printf.fprintf stderr "Usage: %s subreddit [limit] [after]\n%!" Sys.argv.(0)

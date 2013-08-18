@@ -32,7 +32,8 @@ let decode_page h decoder =
     let nb_links, nb_new_links =
       List.fold_left (fun (a,b) l ->
           match l with `Error _ -> (a+1, b) | _ -> (a+1, b+1)) (0,0) m in
-    Printf.printf "%d new articles inserted in the database.\n%!" nb_new_links;
+    Printf.printf "%d new articles inserted in the database out of %d retrieved.\n%!"
+      nb_new_links nb_links;
     if nb_links <> nb_new_links
     then Lwt.return None
     else Lwt.return (Some last_id)
@@ -78,7 +79,7 @@ let _ =
       "--limit", Set_int limit, "<int> Number of links returned by one API call (default: 25).";
       "--after", String (fun id -> after := Some id), "<link_id> Get links posted prior <link_id> (default: most recent link).";
       "--freq", Set_float freq, "<float> Number of seconds between each API call (default: 600).";
-      "--daemon", Set daemonize, "Starts the program as a daemon."
+      "--daemon", Set daemonize, "Start the program as a daemon."
     ] in
   let anon_fun s = subreddit := s in
   let usage_msg = "Usage: " ^ Sys.argv.(0) ^ " [--db-uri <string>] [--limit <int>] [--after <link_id>] [--freq <float>] subreddit" in

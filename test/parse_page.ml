@@ -32,7 +32,7 @@ let decode_page h decoder =
     let nb_links, nb_new_links =
       List.fold_left (fun (a,b) l ->
           match l with `Error _ -> (a+1, b) | _ -> (a+1, b+1)) (0,0) m in
-    Printf.printf "%d new articles inserted in the database.\n%!"; nb_new_links;
+    Printf.printf "%d new articles inserted in the database.\n%!" nb_new_links;
     if nb_links <> nb_new_links
     then Lwt.return None
     else Lwt.return (Some last_id)

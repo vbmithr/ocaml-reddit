@@ -68,12 +68,12 @@ let _ =
   let after = ref None in
   let freq = ref 600.0 in
   let speclist = align [
-      "--db_uri", Set_string db_uri, "<string> URI of the CouchDB database in use (default: http://localhost:5984).";
+      "--db-uri", Set_string db_uri, "<string> URI of the CouchDB database in use (default: http://localhost:5984).";
       "--limit", Set_int limit, "<int> Number of links returned by one API call (default: 100).";
       "--after", String (fun id -> after := Some id), "<link_id> Get links posted prior <link_id> (default: most recent link).";
       "--freq", Set_float freq, "<float> Number of seconds between each API call (default: 600)."
     ] in
   let anon_fun s = subreddit := s in
-  let usage_msg = "Usage: " ^ Sys.argv.(0) ^ " [--db_uri <string>] [--limit <int>] [--after <link_id>] [--freq <float>] subreddit" in
+  let usage_msg = "Usage: " ^ Sys.argv.(0) ^ " [--db-uri <string>] [--limit <int>] [--after <link_id>] [--freq <float>] subreddit" in
   parse speclist anon_fun usage_msg;
   Lwt_main.run (main ~db_uri:!db_uri ~freq:!freq ?after:!after ~limit:!limit !subreddit)

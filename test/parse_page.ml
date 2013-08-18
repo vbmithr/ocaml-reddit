@@ -6,6 +6,7 @@ module B = Cohttp_lwt_body
 
 let (>>=) = Lwt.bind
 let user_agent = "athanor/0.1 by vbmithr"
+let daemonize = ref false
 
 let string_of_link l =
   let open Unix in
@@ -25,9 +26,14 @@ let decode_page h decoder =
     let links = List.rev links in
     Lwt_list.map_s
       (fun link ->
-         Printf.printf "%s\n%!" (string_of_link link);
+         if not !daemonize then Printf.printf "%s\n%!" (string_of_link link);
          Couchdb.Doc.add h "reddit" (json_of_link link)) links
-    >>= fun m -> if List.exists (function `Error _ -> true | _ -> false) m
+    >>= fun m ->
+    let nb_links, nb_new_links =
+      List.fold_left (fun (a,b) l ->
+          match l with `Error _ -> (a+1, b) | _ -> (a+1, b+1)) (0,0) m in
+    Printf.printf "%d new articles inserted in the database.\n%!"; nb_new_links;
+    if nb_links <> nb_new_links
     then Lwt.return None
     else Lwt.return (Some last_id)
 
@@ -49,7 +55,7 @@ let main ?db_uri ?(freq=600.0) ?after ?before ?(limit=100) subreddit =
       let decoder = Jsonm.decoder (`String body) in
       (decode_page h decoder >>= function
         | None ->
-          Printf.printf "\nNo new links, waiting for %.0f seconds before retrying...\n%!" freq;
+          Printf.printf "No new links, waiting for %.0f seconds before retrying...\n%!" freq;
           Lwt_unix.sleep freq >>= fun () -> fetch_and_decode base_uri
         | Some last_id ->
           let uri = Uri.add_query_param' base_uri ("after", last_id) in
@@ -71,9 +77,11 @@ let _ =
       "--db-uri", Set_string db_uri, "<string> URI of the CouchDB database in use (default: http://localhost:5984).";
       "--limit", Set_int limit, "<int> Number of links returned by one API call (default: 100).";
       "--after", String (fun id -> after := Some id), "<link_id> Get links posted prior <link_id> (default: most recent link).";
-      "--freq", Set_float freq, "<float> Number of seconds between each API call (default: 600)."
+      "--freq", Set_float freq, "<float> Number of seconds between each API call (default: 600).";
+      "--daemon", Set daemonize, "Starts the program as a daemon."
     ] in
   let anon_fun s = subreddit := s in
   let usage_msg = "Usage: " ^ Sys.argv.(0) ^ " [--db-uri <string>] [--limit <int>] [--after <link_id>] [--freq <float>] subreddit" in
   parse speclist anon_fun usage_msg;
+  if !daemonize then Lwt_daemon.daemonize ();
   Lwt_main.run (main ~db_uri:!db_uri ~freq:!freq ?after:!after ~limit:!limit !subreddit)

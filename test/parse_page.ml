@@ -50,7 +50,7 @@ let main ?db_uri ?(freq=600.0) ?after ?before ?(limit=100) subreddit =
       (decode_page h decoder >>= function
         | None ->
           Printf.printf "\nNo new links, waiting for %.0f seconds before retrying...\n%!" freq;
-          Lwt_unix.sleep freq >>= fun () -> fetch_and_decode uri
+          Lwt_unix.sleep freq >>= fun () -> fetch_and_decode base_uri
         | Some last_id ->
           let uri = Uri.add_query_param' base_uri ("after", last_id) in
           Lwt_unix.sleep 2.0 >>= fun () ->

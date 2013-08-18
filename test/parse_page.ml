@@ -33,8 +33,8 @@ let decode_page h decoder =
 
 let main ?db_uri ?(freq=600.0) ?after ?before ?(limit=100) subreddit =
   (* Creates the "reddit" DB. *)
-  let h = Couchdb.handle ?uri:db_uri () in
-  Couchdb.DB.create h "reddit"
+  Couchdb.handle ?uri:db_uri ()
+  >>= fun h -> Couchdb.DB.create h "reddit"
   >>= fun _ ->
   let base_uri = Uri.of_string ("http://www.reddit.com/r/" ^ subreddit ^ "/new.json") in
   let base_uri = Uri.add_query_param' base_uri ("limit", string_of_int limit) in

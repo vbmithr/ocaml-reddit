@@ -37,9 +37,9 @@ let decode_page h decoder =
     then Lwt.return None
     else Lwt.return (Some last_id)
 
-let main ?db_uri ?(freq=600.0) ?after ?before ?(limit=100) subreddit =
+let main ?after ?before ~db_uri ~freq ~limit subreddit =
   (* Creates the "reddit" DB. *)
-  Couchdb.handle ?uri:db_uri ()
+  Couchdb.handle ~uri:db_uri ()
   >>= fun h -> Couchdb.DB.create h "reddit"
   >>= fun _ ->
   let base_uri = Uri.of_string ("http://www.reddit.com/r/" ^ subreddit ^ "/new.json") in
@@ -70,12 +70,12 @@ let _ =
   let open Arg in
   let db_uri = ref "http://localhost:5984" in
   let subreddit = ref "" in
-  let limit = ref 100 in
+  let limit = ref 25 in
   let after = ref None in
   let freq = ref 600.0 in
   let speclist = align [
       "--db-uri", Set_string db_uri, "<string> URI of the CouchDB database in use (default: http://localhost:5984).";
-      "--limit", Set_int limit, "<int> Number of links returned by one API call (default: 100).";
+      "--limit", Set_int limit, "<int> Number of links returned by one API call (default: 25).";
       "--after", String (fun id -> after := Some id), "<link_id> Get links posted prior <link_id> (default: most recent link).";
       "--freq", Set_float freq, "<float> Number of seconds between each API call (default: 600).";
       "--daemon", Set daemonize, "Starts the program as a daemon."

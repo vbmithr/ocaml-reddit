@@ -113,10 +113,10 @@ let _ =
       "--all", Set get_all, " Do not stop fetching links when CouchDB says it is already known.";
       "--after", String (fun id -> after := Some id), "<link_id> Get links posted prior <link_id> (default: most recent link).";
       "--freq", Set_float freq, "<float> Number of seconds between each API call (default: 600).";
-      "--daemon", Set daemonize, "Start the program as a daemon."
+      "--daemon", Set daemonize, " Start the program as a daemon."
     ] in
   let anon_fun s = subreddit := s in
-  let usage_msg = "Usage: " ^ Sys.argv.(0) ^ " [--db-uri <string>] [--limit <int>] [--after <link_id>] [--freq <float>] subreddit" in
+  let usage_msg = "Usage: " ^ Sys.argv.(0) ^ " <options> subreddit\nOptions are:" in
   parse speclist anon_fun usage_msg;
   if !daemonize then Lwt_daemon.daemonize ();
   Lwt_main.run

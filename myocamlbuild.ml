@@ -1,5 +1,5 @@
 (* OASIS_START *)
-(* DO NOT EDIT (digest: 02f40f1f1ef96e7a0dea55343842c2d1) *)
+(* DO NOT EDIT (digest: 17b1dd3d757048351d0fe25d1448f89f) *)
 module OASISGettext = struct
 (* # 21 "src/oasis/OASISGettext.ml" *)
 
@@ -476,16 +476,11 @@ end
 # 476 "myocamlbuild.ml"
 open Ocamlbuild_plugin;;
 let package_default =
-  {
-     MyOCamlbuildBase.lib_ocaml = [("reddit", ["lib"])];
-     lib_c = [];
-     flags = [];
-     includes = [("test", ["lib"])];
-     }
+  {MyOCamlbuildBase.lib_ocaml = []; lib_c = []; flags = []; includes = []; }
   ;;
 
 let dispatch_default = MyOCamlbuildBase.dispatch_default package_default;;
 
-# 490 "myocamlbuild.ml"
+# 485 "myocamlbuild.ml"
 (* OASIS_STOP *)
 Ocamlbuild_plugin.dispatch dispatch_default;;

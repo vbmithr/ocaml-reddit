@@ -7,15 +7,10 @@ License: ISC
 Plugins: META (0.3), DevFiles (0.3)
 BuildTools: ocamlbuild
 
-Library reddit
-  Path: lib
-  Modules: Types
-  BuildDepends: jsonm
-
-Executable parse_page
-  Path: test
-  MainIs: parse_page.ml
-  BuildDepends: reddit, lwt, cohttp.lwt, couchdb
+Executable redditstream
+  Path: src
+  MainIs: redditstream.ml
+  BuildDepends: yojson, lwt, cohttp.lwt, couchdb
   CompiledObject: native
   Build: true
   Install: false

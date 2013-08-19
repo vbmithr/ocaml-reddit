@@ -1,4 +1,3 @@
-open Types
 open Cohttp
 
 module C = Cohttp_lwt_unix.Client
@@ -38,31 +37,31 @@ let sanitize_link kv = match fst kv with
   | "permalink" -> Some kv
   | _ -> None
 
-let decode_page_yojson h = function
-  | `Assoc obj ->
-    let last_link = obj |> YB.Util.member "data" |> YB.Util.member "after" in
-    let links = obj |> YB.Util.member "data" |> YB.Util.member "children" |> YB.Util.to_list in
+let decode_page ?(get_all = false) h json =
+  let last_link_id =
+    try json |> YB.Util.member "data" |> YB.Util.member "after" |> YB.Util.to_string
+    with YB.Util.Type_error _ -> "" in
+  if last_link_id = "" then
+    Lwt.return None
+  else
+    let links = json |> YB.Util.member "data" |> YB.Util.member "children" |> YB.Util.to_list in
+    let links = List.map (YB.Util.member "data") links in
     let links = List.map (sanitize_json_object sanitize_link) links in
-    Lwt.try_bind
-      (fun () ->
-         Lwt_list.map_s
-           (fun link ->
-              if not !daemonize then Printf.printf "%s\n%!" (string_of_link link);
-              Couchdb.Doc.add h "reddit" link)
-           links)
-      (fun m ->
-         let nb_links, nb_new_links =
-           List.fold_left (fun (a,b) l ->
-               match l with `Error _ -> (a+1, b) | _ -> (a+1, b+1)) (0,0) m in
-         Printf.printf "%d new articles inserted in the database out of %d retrieved.\n%!"
-           nb_new_links nb_links;
-         if nb_links <> nb_new_links
-         then Lwt.return None
-         else Lwt.return (Some last_id))
-      (fun exc -> Lwt_io.printf "Error inserting links to CouchDB: %s\n" (Printexc.to_string exc))
-  | _ -> raise (Invalid_argument "Not a JSON object")
+    Lwt_list.map_s
+      (fun link ->
+         if not !daemonize then Printf.printf "%s\n%!" (string_of_link link);
+         Couchdb.Doc.add h "reddit" link)
+      links >>= fun m ->
+    let nb_links, nb_new_links =
+      List.fold_left (fun (a,b) l ->
+          match l with `Failure _ -> (a+1, b) | _ -> (a+1, b+1)) (0,0) m in
+    Printf.printf "%d new articles inserted in the database out of %d retrieved.\n%!"
+      nb_new_links nb_links;
+    if (nb_links <> nb_new_links) && not get_all
+    then Lwt.return None
+    else Lwt.return (Some last_link_id)
 
-let main ?after ?before ~db_uri ~freq ~limit subreddit =
+let main ?after ?before ~db_uri ~freq ~limit ~get_all subreddit =
   (* Creates the "reddit" DB. *)
   Couchdb.handle ~uri:db_uri ()
   >>= fun h -> Couchdb.DB.create h "reddit"
@@ -79,18 +78,26 @@ let main ?after ?before ~db_uri ~freq ~limit subreddit =
     | Some (resp, body) ->
       B.string_of_body body >>= fun bs ->
       YB.from_string bs |>
-      decode_page_yojson h >>= (function
+      decode_page ~get_all h >>= (function
           | None ->
             Printf.printf "No new links, waiting for %.0f seconds before retrying...\n%!" freq;
             Lwt_unix.sleep freq >>= fun () -> fetch_and_decode base_uri
           | Some last_id ->
             let uri = Uri.add_query_param' base_uri ("after", last_id) in
-            Lwt_unix.sleep 2.0 >>= fun () ->
+            Lwt_unix.sleep 1.0 >>= fun () ->
             fetch_and_decode uri)
     | None ->
       Printf.printf "Connection to reddit failed. Retrying in %.0f seconds.\n%!" freq;
-      Lwt_unix.sleep freq >>= fun () -> fetch_and_decode uri in
-  fetch_and_decode init_uri
+      Lwt_unix.sleep freq >>= fun () ->
+      fetch_and_decode uri
+  in
+  let rec forever () =
+    Lwt.catch
+      (fun () -> fetch_and_decode init_uri)
+      (fun exn -> Lwt_io.printf "Caught unhandled exception %s\n"
+          (Printexc.to_string exn)) >>= fun () ->
+    forever () in
+  forever ()
 
 let _ =
   let open Arg in
@@ -99,9 +106,11 @@ let _ =
   let limit = ref 25 in
   let after = ref None in
   let freq = ref 600.0 in
+  let get_all = ref false in
   let speclist = align [
       "--db-uri", Set_string db_uri, "<string> URI of the CouchDB database in use (default: http://localhost:5984).";
       "--limit", Set_int limit, "<int> Number of links returned by one API call (default: 25).";
+      "--all", Set get_all, " Do not stop fetching links when CouchDB says it is already known.";
       "--after", String (fun id -> after := Some id), "<link_id> Get links posted prior <link_id> (default: most recent link).";
       "--freq", Set_float freq, "<float> Number of seconds between each API call (default: 600).";
       "--daemon", Set daemonize, "Start the program as a daemon."
@@ -110,4 +119,11 @@ let _ =
   let usage_msg = "Usage: " ^ Sys.argv.(0) ^ " [--db-uri <string>] [--limit <int>] [--after <link_id>] [--freq <float>] subreddit" in
   parse speclist anon_fun usage_msg;
   if !daemonize then Lwt_daemon.daemonize ();
-  Lwt_main.run (main ~db_uri:!db_uri ~freq:!freq ?after:!after ~limit:!limit !subreddit)
+  Lwt_main.run
+    (main
+       ~db_uri:!db_uri
+       ~freq:!freq
+       ?after:!after
+       ~limit:!limit
+       ~get_all:!get_all
+       !subreddit)

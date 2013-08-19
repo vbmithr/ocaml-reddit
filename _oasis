@@ -12,14 +12,6 @@ Library reddit
   Modules: Types
   BuildDepends: jsonm
 
-Executable parse_link
-  Path: test
-  MainIs: parse_link.ml
-  BuildDepends: reddit
-  CompiledObject: native
-  Build: true
-  Install: false
-
 Executable parse_page
   Path: test
   MainIs: parse_page.ml

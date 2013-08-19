@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: ebfe04f1d72b0e54b33df9c1e4c7dbc9)
+# DO NOT EDIT (digest: 6dd9e75e08f602c5ba0f13e537e21e24)
 # Ignore VCS directories, you can use the same kind of rule outside 
 # OASIS_START/STOP if you want to exclude directories that contains 
 # useless stuff for the build process
@@ -16,9 +16,6 @@
 # Library reddit
 "lib/reddit.cmxs": use_reddit
 <lib/*.ml{,i}>: pkg_jsonm
-# Executable parse_link
-"test/parse_link.native": use_reddit
-"test/parse_link.native": pkg_jsonm
 # Executable parse_page
 "test/parse_page.native": use_reddit
 "test/parse_page.native": pkg_lwt

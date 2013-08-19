@@ -3,40 +3,64 @@ open Cohttp
 
 module C = Cohttp_lwt_unix.Client
 module B = Cohttp_lwt_body
+module YB = Yojson.Basic
 
 let (>>=) = Lwt.bind
+let (|>) x f = f x
 let user_agent = "athanor/0.1 by vbmithr"
 let daemonize = ref false
 
-let string_of_link l =
+let string_of_link json =
   let open Unix in
-  let date = gmtime l.link_created_utc in
+  let date = json |> YB.Util.member "created_utc" |> YB.Util.to_number |> gmtime in
+  let title = json |> YB.Util.member "title" |> YB.Util.to_string in
   Printf.sprintf "%d-%02d-%02d %02d:%02d:%02d %s"
     (date.tm_year+1900) date.tm_mon date.tm_mday
     date.tm_hour date.tm_min date.tm_sec
-    l.link_title
+    title
 
-let decode_page h decoder =
-  let maps = try stringmaps_of_page decoder with _ -> [] in
-  if maps = [] then Lwt.return None else
-    let links = List.map link_of_stringmap maps in
-    let last_link = List.hd links in
-    let last_id = "t3_" ^ last_link.link_id in
-    (* Adding the results in the DB. *)
-    let links = List.rev links in
-    Lwt_list.map_s
-      (fun link ->
-         if not !daemonize then Printf.printf "%s\n%!" (string_of_link link);
-         Couchdb.Doc.add h "reddit" (json_of_link link)) links
-    >>= fun m ->
-    let nb_links, nb_new_links =
-      List.fold_left (fun (a,b) l ->
-          match l with `Error _ -> (a+1, b) | _ -> (a+1, b+1)) (0,0) m in
-    Printf.printf "%d new articles inserted in the database out of %d retrieved.\n%!"
-      nb_new_links nb_links;
-    if nb_links <> nb_new_links
-    then Lwt.return None
-    else Lwt.return (Some last_id)
+let sanitize_json_object f = function
+  | `Assoc assocs -> `Assoc (YB.Util.filter_map f assocs)
+  | _ -> raise (Invalid_argument "not a JSON object")
+
+let sanitize_link kv = match fst kv with
+  | "id" -> Some ("_id", snd kv)
+  | "title" -> Some kv
+  | "url" -> Some kv
+  | "author" -> Some kv
+  | "created_utc" -> Some kv
+  | "downs" -> Some kv
+  | "ups" -> Some kv
+  | "score" -> Some kv
+  | "selftext" -> Some kv
+  | "num_comments" -> Some kv
+  | "subreddit_id" -> Some kv
+  | "permalink" -> Some kv
+  | _ -> None
+
+let decode_page_yojson h = function
+  | `Assoc obj ->
+    let last_link = obj |> YB.Util.member "data" |> YB.Util.member "after" in
+    let links = obj |> YB.Util.member "data" |> YB.Util.member "children" |> YB.Util.to_list in
+    let links = List.map (sanitize_json_object sanitize_link) links in
+    Lwt.try_bind
+      (fun () ->
+         Lwt_list.map_s
+           (fun link ->
+              if not !daemonize then Printf.printf "%s\n%!" (string_of_link link);
+              Couchdb.Doc.add h "reddit" link)
+           links)
+      (fun m ->
+         let nb_links, nb_new_links =
+           List.fold_left (fun (a,b) l ->
+               match l with `Error _ -> (a+1, b) | _ -> (a+1, b+1)) (0,0) m in
+         Printf.printf "%d new articles inserted in the database out of %d retrieved.\n%!"
+           nb_new_links nb_links;
+         if nb_links <> nb_new_links
+         then Lwt.return None
+         else Lwt.return (Some last_id))
+      (fun exc -> Lwt_io.printf "Error inserting links to CouchDB: %s\n" (Printexc.to_string exc))
+  | _ -> raise (Invalid_argument "Not a JSON object")
 
 let main ?after ?before ~db_uri ~freq ~limit subreddit =
   (* Creates the "reddit" DB. *)
@@ -52,16 +76,17 @@ let main ?after ?before ~db_uri ~freq ~limit subreddit =
   let headers = Header.init_with "User-Agent" user_agent in
   let rec fetch_and_decode uri =
     C.get ~headers uri >>= function
-    | Some (resp, body) -> B.string_of_body body >>= fun body ->
-      let decoder = Jsonm.decoder (`String body) in
-      (decode_page h decoder >>= function
-        | None ->
-          Printf.printf "No new links, waiting for %.0f seconds before retrying...\n%!" freq;
-          Lwt_unix.sleep freq >>= fun () -> fetch_and_decode base_uri
-        | Some last_id ->
-          let uri = Uri.add_query_param' base_uri ("after", last_id) in
-          Lwt_unix.sleep 2.0 >>= fun () ->
-          fetch_and_decode uri)
+    | Some (resp, body) ->
+      B.string_of_body body >>= fun bs ->
+      YB.from_string bs |>
+      decode_page_yojson h >>= (function
+          | None ->
+            Printf.printf "No new links, waiting for %.0f seconds before retrying...\n%!" freq;
+            Lwt_unix.sleep freq >>= fun () -> fetch_and_decode base_uri
+          | Some last_id ->
+            let uri = Uri.add_query_param' base_uri ("after", last_id) in
+            Lwt_unix.sleep 2.0 >>= fun () ->
+            fetch_and_decode uri)
     | None ->
       Printf.printf "Connection to reddit failed. Retrying in %.0f seconds.\n%!" freq;
       Lwt_unix.sleep freq >>= fun () -> fetch_and_decode uri in

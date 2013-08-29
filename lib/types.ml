@@ -53,21 +53,3 @@ type link =
     link_subreddit_id: guid;
     link_permalink: string;
   }
-
-let json_of_link l =
-  `Assoc [
-    "_id", `String l.link_id;
-    "title", `String l.link_title;
-    "url", `String l.link_url;
-    "author", `String l.link_author;
-    "created_utc", `Float l.link_created_utc;
-    "downs", `Int l.link_downs;
-    "ups", `Int l.link_ups;
-    "score", `Int l.link_score;
-    "selftext", `String l.link_selftext;
-    "num_comments", `Int l.link_num_comments;
-    "subreddit_id", `String (string_of_guid l.link_subreddit_id);
-    "permalink", `String l.link_permalink;
-  ]
-
-

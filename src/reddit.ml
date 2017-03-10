@@ -24,7 +24,7 @@ let kind_of_prefix = function
   | "t5" -> Subreddit
   | "t6" -> Award
   | "t8" -> PromoCampaign
-  | _    -> raise (Invalid_argument "prefix")
+  | _    -> invalid_arg "kind_of_prefix"
 
 type uid = string
 
@@ -38,18 +38,17 @@ let guid_of_string guid =
   else
     raise (Invalid_argument "guid")
 
-type link =
-  {
-    link_id: uid;
-    link_title: string;
-    link_url: string;
-    link_author: string;
-    link_created_utc: float;
-    link_downs: int;
-    link_ups: int;
-    link_score: int;
-    link_selftext: string;
-    link_num_comments: int;
-    link_subreddit_id: guid;
-    link_permalink: string;
-  }
+type link = {
+  link_id: uid;
+  link_title: string;
+  link_url: string;
+  link_author: string;
+  link_created_utc: float;
+  link_downs: int;
+  link_ups: int;
+  link_score: int;
+  link_selftext: string;
+  link_num_comments: int;
+  link_subreddit_id: guid;
+  link_permalink: string;
+}

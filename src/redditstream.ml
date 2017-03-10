@@ -1,12 +1,10 @@
+open Lwt.Infix
 open Cohttp
 
 module C = Cohttp_lwt_unix.Client
 module B = Cohttp_lwt_body
-module YB = Yojson.Basic
 
-let (>>=) = Lwt.bind
-let (|>) x f = f x
-let user_agent = "athanor/0.1 by vbmithr"
+let user_agent = "ocaml-reddit"
 let daemonize = ref false
 
 let string_of_link json =
@@ -50,7 +48,7 @@ let decode_page ?(get_all = false) h json =
     Lwt_list.map_s
       (fun link ->
          if not !daemonize then Printf.printf "%s\n%!" (string_of_link link);
-         Couchdb.Doc.add h "reddit" link)
+         Couchdb_lwt.Document.add h "reddit" link)
       links >>= fun m ->
     let nb_links, nb_new_links =
       List.fold_left (fun (a,b) l ->
